@@ -9,7 +9,8 @@ on:
       - "uv.lock"
       - ".github/workflows/issue92-regression.yml"
   push:
-    branches: ["fix/92-empty-summary", "main"]
+    # Feature branches are already tested by pull_request; avoid running twice.
+    branches: ["main"]
     paths:
       - "src/**"
       - "tests/**"

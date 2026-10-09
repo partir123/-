@@ -53,15 +53,39 @@ uv sync --locked --python 3.11
 uv run --locked python -m unittest discover -s tests -p test_summary_validation.py -v -b
 ```
 
-预期最终显示 `Ran 14 tests` 和 `OK`。这是预期结果，具体运行是否通过应以本机日志或 GitHub Actions 结果为准。
+预期最终显示 `Ran 14 tests` 和 `OK`。具体运行是否通过应以对应提交的日志或 GitHub Actions 结果为准。
 
 ## 自动回归与负对照
 
 `.github/workflows/issue92-regression.yml` 配置 Ubuntu / Windows 两个 Python 3.11 任务。依赖安装需要联网，测试阶段不需要模型服务、搜索服务或密钥。
 
-每个任务先临时移除这六行保护逻辑，执行同一套测试，要求得到 42 个“应抛出 RuntimeError 但未抛出”的子用例失败，且没有导入错误或其他异常；随后在 `finally` 中恢复原文件，重新执行测试，要求全部通过。最后检查源码与锁文件未被测试修改。
+每个任务先临时移除保护逻辑，执行同一套测试，要求得到 42 个“应抛出 RuntimeError 但未抛出”的子用例失败，且没有导入错误或其他异常；随后在 `finally` 中恢复原文件，重新执行测试，要求全部通过。最后检查源码与锁文件未被测试修改。
 
-此负对照用于证明测试确实能发现本次修复针对的问题，不能用任意非零退出码充当复现成功。工作流本身配置完成不等于 CI 已通过，需查看具体运行记录。
+此负对照用于证明测试确实能发现本次修复针对的问题，不能用任意非零退出码充当复现成功。
+
+### 2026-10-09 已核验的运行
+
+修复提交：`50948dd112cb0b77373fc1248f999e45e6a807e4`。
+[GitHub Actions 运行 37933506625](https://github.com/partir123/-/actions/runs/37933506625) 的 Windows、Ubuntu / Python 3.11 两个任务均成功完成：先通过负对照检查，再通过修复后的 14 个测试方法，最后确认源码和锁文件未改变。
+
+这是 GitHub 托管运行器上的项目内回归结果，不是只有语法检查，也不是在用户 Windows 电脑上执行的结果。模型与搜索 I/O 仍然是受控测试替身，没有使用真实 API Key。
+
+## 避免重复执行和未配置的可选任务
+
+回归测试保留 `pull_request`、`main` 分支的 `push` 和手动触发。功能分支不再单独监听 `push`，避免同一提交在功能分支推送和 PR 更新时重复测试。合并到 `main` 后仍会执行一次主分支回归。
+
+本次一并为从上游继承的两个可选工作流加入 fork 启用条件：
+
+| 工作流 | 在 fork 中的默认处理 | 以后启用前的要求 |
+|---|---|---|
+| Claude Code Review | 跳过；不调用外部审查服务 | 安装并配置对应 GitHub App 和凭证，再将仓库变量 `ENABLE_CLAUDE_REVIEW` 设为 `true` |
+| Docker Image CI | 跳过；不构建或发布镜像 | 配置合法镜像名、注册表凭证和所需权限，再将仓库变量 `ENABLE_DOCKER_CI` 设为 `true` |
+
+这两个变量是 GitHub Actions 的仓库配置变量，不是本地 `.env` 项；此处只修改工作流执行条件，没有替用户设置任何仓库变量、密钥或账户邮件通知。
+
+原因来自已结束的失败日志：Claude 审查报告 GitHub App 未安装；Docker 报告 `ghcr.io/partir123/-:latest` 是非法镜像标签。此次没有修复 Docker 构建或配置 Claude 服务，因此它们的状态应记为“跳过”，不能记成“测试通过”。回归测试继续实际执行，未使用 `continue-on-error` 隐藏失败。相关判断方式见 [GitHub 条件执行文档](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions)。
+
+这些 CI 调整与摘要修复分属独立提交；准备上游补丁时可单独选取摘要修复及其测试，不混入 fork 的启用策略。
 
 ## 不包含的结论
 
