@@ -1,6 +1,8 @@
 # Local Deep Researcher：本地深度研究助手
 
-Local Deep Researcher 是一个完全在本地运行的网页研究助手，可以使用由 [Ollama](https://ollama.com/search) 或 [LMStudio](https://lmstudio.ai/) 托管的大语言模型（LLM）。输入一个研究主题后，它会生成搜索查询、收集网页搜索结果并进行总结，再反思总结中尚未解决的问题，生成新的查询以补充缺失的信息。上述过程会按照用户设定的轮数重复执行，最终输出一份 Markdown 总结，并列出生成总结时使用的全部来源。
+本仓库基于 [langchain-ai/local-deep-researcher](https://github.com/langchain-ai/local-deep-researcher) 二次开发，保留上游来源与 MIT 许可证。现已接入 **DeepSeek 云端 API**，并保留 [Ollama](https://ollama.com/search) 和 [LMStudio](https://lmstudio.ai/) 本地模型入口。
+
+输入研究主题后，程序生成查询、检索网页、总结资料，并按配置反思和继续检索；最终返回 Markdown 总结及本次收集的来源。使用 DeepSeek 时，Python 流程在本机运行、模型推理在云端完成，不需要下载本地模型。网页检索仍需要联网，问题和检索内容会发送给模型服务。
 
 ![本地深度研究助手工作流程](https://github.com/user-attachments/assets/1c6b28f8-6b64-42ba-a491-1ab2875d50ea)
 
@@ -8,6 +10,18 @@ Local Deep Researcher 是一个完全在本地运行的网页研究助手，可�
 <video src="https://github.com/user-attachments/assets/02084902-f067-4658-9683-ff312cab7944" controls></video>
 
 ## 🔥 更新记录
+
+### 2026-10-09：本仓库 API 接入与搜索修复
+
+- 新增 `LLM_PROVIDER=deepseek`，通过本地环境变量 `DEEPSEEK_API_KEY` 读取凭证。查询与反思使用 JSON 输出，总结通过同一个 `get_llm()` 入口使用普通文本输出。
+- DeepSeek 当前适配使用非思考模式，接口地址固定为 `https://api.deepseek.com`，请求超时配置为 90 秒，自动重试为 0，单次输出上限为 2048 tokens；这些是代码内的配置，不是新增的 `.env` 开关。
+- 将旧 `duckduckgo-search` 依赖迁移为 `ddgs==9.16.0`，显式选择 DuckDuckGo 后端，检查返回条目的标题、URL 和摘要。
+- DuckDuckGo 请求失败或没有有效来源时停止当前研究流程，分别报告 `SEARCH_REQUEST_FAILED` 或 `SEARCH_NO_RESULTS`，不再用空检索结果继续生成总结。该保护范围是当前 DuckDuckGo 适配器，不代表所有搜索后端都已完成相同加固。
+- 增加云端 API 配置示例、中文启动说明，并保留本地环境、缓存及备份的 Git 忽略规则。
+
+**当日验证记录：**维护者在 Windows + Python 3.11 环境中完成了项目导入、DeepSeek API/JSON 检查，以及一个 CAN 总线问题的端到端运行，搜索返回 3 条有效来源并保存了报告。运行样例见 [CAN 总线报告](deepseek_report_ddgs_20261009-164239-200472.md)。这是一次运行样例，不是多场景回归或正文事实准确性的认证；本次文档整合未另行使用真实 Key 调用 API。
+
+### 上游历史记录
 
 * 8/6/25：新增对工具调用和 [gpt-oss](https://openai.com/index/introducing-gpt-oss/) 的支持。
 
@@ -21,16 +35,133 @@ Local Deep Researcher 是一个完全在本地运行的网页研究助手，可�
 
 ## 🚀 快速开始
 
-克隆仓库：
-```shell
-git clone https://github.com/langchain-ai/local-deep-researcher.git
+### 使用 DeepSeek API（Windows / PowerShell）
+
+以下是本仓库新增的云端运行路径，不需要安装 Ollama 或 LMStudio。先准备 Git、[uv](https://docs.astral.sh/uv/getting-started/installation/) 和在 DeepSeek 官方平台申请的 API Key。接口与模型信息可查阅 [DeepSeek 官方文档](https://api-docs.deepseek.com/zh-cn/)。下面使用当日运行日志中的 `deepseek-flash`；第三方平台的 Key 不适用于代码中固定的官方接口地址。
+
+#### 1. 克隆本仓库并准备环境
+
+```powershell
+git clone https://github.com/partir123/-.git local-deep-researcher
 cd local-deep-researcher
+uv python install 3.11
+uv sync --locked --python 3.11
 ```
 
-随后按需编辑 `.env` 文件，设置环境变量。这些变量用于指定模型、搜索工具及其他运行配置。运行应用时，`python-dotenv` 会自动加载这些值，因为 `langgraph.json` 指定了相应的环境变量文件。
-```shell
-cp .env.example .env
+已有仓库和环境时，先保存本地改动并同步远端，不要重复克隆。`--locked` 会在锁文件与依赖声明不一致时报错，不会自动改写锁文件。命令用法见 [uv 官方文档](https://docs.astral.sh/uv/concepts/projects/sync/)。
+
+#### 2. 配置本地 `.env`
+
+仅在 `.env` 不存在时复制模板，避免覆盖已有 Key：
+
+```powershell
+if (-not (Test-Path -LiteralPath .env)) { Copy-Item .env.example .env }
+notepad .env
 ```
+
+在本地填写或核对以下配置。同名变量只保留一行：
+
+```dotenv
+LLM_PROVIDER=deepseek
+LOCAL_LLM=deepseek-flash
+DEEPSEEK_API_KEY=YOUR_DEEPSEEK_API_KEY
+
+SEARCH_API=duckduckgo
+MAX_WEB_RESEARCH_LOOPS=0
+FETCH_FULL_PAGE=false
+USE_TOOL_CALLING=false
+STRIP_THINKING_TOKENS=true
+
+LANGSMITH_TRACING=false
+LANGCHAIN_TRACING_V2=false
+```
+
+把占位符换成你自己的真实 Key，保存为 `.env`，不要保存为 `.env.txt`。**真实 Key 不能写进源码、README、提交记录或公开日志。**确认它未被 Git 跟踪：
+
+```powershell
+git check-ignore -v .env
+git ls-files -- .env
+```
+
+第一条应显示忽略规则，第二条应没有输出。`.env.example` 只包含占位符，可以提交。本说明中的命令通过 `uv run --env-file .env` 显式加载配置；普通 `python` 启动不会因为目录里有 `.env` 就自动读取它。LangGraph CLI 的环境加载由 `langgraph.json` 配置。
+
+#### 3. 检查导入和 API
+
+导入检查不调用模型：
+
+```powershell
+uv run --locked --env-file .env python -c "from ollama_deep_researcher.graph import graph; print('Graph import OK')"
+```
+
+下面的独立 API 检查会发出一次模型请求并产生用量，不执行网页搜索。把整段粘贴到 PowerShell：
+
+```powershell
+@'
+import json
+from ollama_deep_researcher.configuration import Configuration
+from ollama_deep_researcher.graph import get_llm
+
+cfg = Configuration.from_runnable_config()
+if cfg.llm_provider != "deepseek" or cfg.use_tool_calling:
+    raise SystemExit("Set LLM_PROVIDER=deepseek and USE_TOOL_CALLING=false.")
+
+reply = get_llm(cfg, structured_output=True).invoke([
+    ("human", 'Return only this JSON object: {"status": "ok"}')
+])
+if json.loads(reply.content) != {"status": "ok"}:
+    raise SystemExit("JSON validation failed.")
+
+print("DeepSeek API OK")
+print("JSON validation OK")
+print("Usage:", getattr(reply, "usage_metadata", None))
+'@ | uv run --locked --env-file .env python -
+```
+
+#### 4. 生成研究报告
+
+完整流程会多次调用模型。先使用公开问题；以下示例保留当日首跑的英文主题。模型生成的最终正文仍需人工核对。
+
+```powershell
+@'
+from datetime import datetime
+from pathlib import Path
+from ollama_deep_researcher.graph import graph
+
+print("Starting research...", flush=True)
+result = graph.invoke({
+    "research_topic": "What is CAN bus? Explain its purpose and basic operation with sources."
+})
+report = result["running_summary"]
+_, separator, sources = report.rpartition("### Sources:")
+if not separator or not sources.strip():
+    raise SystemExit("Final sources are empty. No report saved.")
+
+stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+output = Path(f"deepseek_report_ddgs_{stamp}.md")
+output.write_text(report, encoding="utf-8")
+print(report)
+print("Saved:", output.resolve())
+'@ | uv run --locked --env-file .env python -u -
+```
+
+报告保存在命令执行目录，文件名带时间戳。图返回 `running_summary`；保存文件由上面的运行代码完成，并非 `graph.invoke()` 自动写文件。
+
+#### 5. 当前参数与验证边界
+
+| 配置或现象 | 当前实现中的含义 |
+|---|---|
+| `MAX_WEB_RESEARCH_LOOPS=0` | 首跑会先检索一次，再反思并判断是否继续；不是零次搜索。当前路由使用 `<=`，对非负整数 N，正常完整执行时总检索次数为 N+1。 |
+| `FETCH_FULL_PAGE=false` | 只使用搜索摘要。即使来源指向 PDF，也不表示已经解析了 PDF 全文。代码类默认值为 `true`，本仓库首跑模板显式覆盖为 `false`。 |
+| `SEARCH_API=duckduckgo` | 仍然选 DuckDuckGo 后端；不要改为 `ddgs`，后者是软件包名。 |
+| `USE_TOOL_CALLING=false` | 首跑采用 JSON 输出路径。本次没有验证思考模式或多轮工具调用。 |
+| 终端中的 `result: ...` | 查询/反思步骤当前打印的模型响应，不是报错；其中可见用量不包含未打印的总结步骤。 |
+| 来源列表非空 | 表示程序保存了实际检索来源，不代表正文每个结论均已被证据支持。 |
+
+遇到 `SEARCH_REQUEST_FAILED` 或 `SEARCH_NO_RESULTS` 时，先排查搜索，不要盲目更换 DeepSeek Key。`401`、`402`、`429` 等 API 状态请对照 [DeepSeek 错误码文档](https://api-docs.deepseek.com/zh-cn/quick_start/error_codes)。
+
+### 其他模型与可选界面
+
+下文保留上游的 Ollama、LMStudio 和 Studio 使用说明，作为本地模型及界面运行的可选路径。**仅使用上面的 DeepSeek 命令行方式时，不必执行这些安装步骤。**这些路径未包含在 2026-10-09 的云端首跑验证中。
 
 ### 使用 Ollama 选择本地模型
 
@@ -77,7 +208,7 @@ SEARCH_API=xxx # 使用的搜索接口，例如默认的 duckduckgo
 TAVILY_API_KEY=xxx # 使用的 Tavily API Key
 PERPLEXITY_API_KEY=xxx # 使用的 Perplexity API Key
 MAX_WEB_RESEARCH_LOOPS=xxx # 网页研究的最大循环次数，默认为 3
-FETCH_FULL_PAGE=xxx # 是否抓取网页全文（使用 duckduckgo 时），默认为 false
+FETCH_FULL_PAGE=xxx # 是否抓取网页全文；代码默认 true，首跑 .env 模板设置 false
 ```
 
 ### 通过 LangGraph Studio 运行
@@ -163,7 +294,7 @@ langgraph dev
 ## 工作原理
 
 Local Deep Researcher 受到 [IterDRAG](https://arxiv.org/html/2410.04343v1#:~:text=To%20tackle%20this%20issue%2C%20we,used%20to%20generate%20intermediate%20answers.) 的启发。该方法会将查询拆分为子查询，分别检索文档、回答子问题，并在已有回答的基础上继续检索后续子问题所需的资料。本项目采用类似流程：
-- 根据用户提供的主题，通过 [Ollama](https://ollama.com/search) 或 [LMStudio](https://lmstudio.ai/) 中的本地大语言模型生成网页搜索查询。
+- 根据用户提供的主题，通过所配置的 DeepSeek API 或 Ollama／LMStudio 本地模型生成网页搜索查询。
 - 使用搜索引擎或搜索工具查找相关来源。
 - 使用大语言模型总结搜索结果中与研究主题相关的信息。
 - 让模型反思当前总结，识别缺失或尚待澄清的信息。
@@ -173,7 +304,7 @@ Local Deep Researcher 受到 [IterDRAG](https://arxiv.org/html/2410.04343v1#:~:t
 
 ## 输出结果
 
-图的输出是一份 Markdown 文件，包含研究总结及所用来源的引用。研究过程中收集到的全部来源都会保存在图状态中，可以通过 LangGraph Studio 查看：
+图返回包含 Markdown 总结的 `running_summary` 字段，并在末尾附加收集到的来源；需要像上面的 API 示例那样显式保存，才会生成文件。研究过程中收集到的来源也会保存在图状态中，可以通过 LangGraph Studio 查看：
 
 ![来源状态截图：2024-12-05 16:08:59](https://github.com/user-attachments/assets/e8ac1c0b-9acb-4a75-8c15-4e677e92f6cb)
 
