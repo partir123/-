@@ -17,6 +17,8 @@ env:
 
 jobs:
   build:
+    # Forks must configure a valid image name and registry credentials before opting in.
+    if: github.repository == 'langchain-ai/local-deep-researcher' || vars.ENABLE_DOCKER_CI == 'true'
     runs-on: ubuntu-latest
 
     steps:

@@ -12,7 +12,10 @@ on:
 
 jobs:
   claude-review:
-    if: github.actor != 'dependabot[bot]'
+    # Forks must install the GitHub App and configure credentials before opting in.
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.repository == 'langchain-ai/local-deep-researcher' || vars.ENABLE_CLAUDE_REVIEW == 'true')
 
     runs-on: ubuntu-latest
     permissions:

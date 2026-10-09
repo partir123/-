@@ -329,6 +329,12 @@ def summarize_sources(state: SummaryState, config: RunnableConfig):
     if configurable.strip_thinking_tokens:
         running_summary = strip_thinking_tokens(running_summary)
 
+    if not running_summary.strip():
+        raise RuntimeError(
+            "SUMMARY_EMPTY: the model returned no summary text. "
+            "Check its context window and output settings."
+        )
+
     return {"running_summary": running_summary}
 
 
