@@ -2,7 +2,7 @@
 
 本仓库基于 [langchain-ai/local-deep-researcher](https://github.com/langchain-ai/local-deep-researcher) 二次开发，保留上游来源与 MIT 许可证。现已接入 **DeepSeek 云端 API**，并保留 [Ollama](https://ollama.com/search) 和 [LMStudio](https://lmstudio.ai/) 本地模型入口。
 
-输入研究主题后，程序生成查询、检索网页、总结资料，并按配置反思和继续检索；最终返回 Markdown 总结及本次收集的来源。使用 DeepSeek 时，Python 流程在本机运行、模型推理在云端完成，不需要下载本地模型。网页检索仍需要联网，问题和检索内容会发送给模型服务。
+输入研究主题后，程序生成查询、检索网页、总结资料，并按配置反思和继续检索；最终返回 Markdown 总结及本次收集的来源。使用 DeepSeek 时，Python 流程在本机运行、模型推理在云端完成，不需要下载本地模型（适用于电脑性能较弱的）。网页检索仍需要联网，问题和检索内容会发送给模型服务。
 
 ![本地深度研究助手工作流程](https://github.com/user-attachments/assets/1c6b28f8-6b64-42ba-a491-1ab2875d50ea)
 
@@ -21,23 +21,13 @@
 
 **当日验证记录：**维护者在 Windows + Python 3.11 环境中完成了项目导入、DeepSeek API/JSON 检查，以及一个 CAN 总线问题的端到端运行，搜索返回 3 条有效来源并保存了报告。运行样例见 [CAN 总线报告](deepseek_report_ddgs_20261009-164239-200472.md)。这是一次运行样例，不是多场景回归或正文事实准确性的认证；本次文档整合未另行使用真实 Key 调用 API。
 
-### 上游历史记录
-
-* 8/6/25：新增对工具调用和 [gpt-oss](https://openai.com/index/introducing-gpt-oss/) 的支持。
-
-> ⚠️ **注意（8/6/25）**：`gpt-oss` 模型在 Ollama 中不支持 JSON 模式。请在配置中启用 `use_tool_calling`，使用工具调用替代 JSON 模式。
-
-## 📺 视频教程
-
-希望查看实际运行效果，或者自己动手搭建？可以参考以下视频教程：
-- [使用 R1 的 Local Deep Researcher 概览](https://www.youtube.com/watch?v=sGUjmyfof4Q)：加载并测试 [DeepSeek R1](https://api-docs.deepseek.com/news/news250120) 的[蒸馏模型](https://ollama.com/library/deepseek-r1)。
-- [从零构建 Local Deep Researcher](https://www.youtube.com/watch?v=XGuTzHoqlj8)：介绍项目的构建过程。
-
 ## 🚀 快速开始
 
 ### 使用 DeepSeek API（Windows / PowerShell）
 
-以下是本仓库新增的云端运行路径，不需要安装 Ollama 或 LMStudio。先准备 Git、[uv](https://docs.astral.sh/uv/getting-started/installation/) 和在 DeepSeek 官方平台申请的 API Key。接口与模型信息可查阅 [DeepSeek 官方文档](https://api-docs.deepseek.com/zh-cn/)。下面使用当日运行日志中的 `deepseek-flash`；第三方平台的 Key 不适用于代码中固定的官方接口地址。
+以下是本仓库新增的云端运行路径，不需要安装 Ollama 或 LMStudio。
+先准备 Git、[uv](https://docs.astral.sh/uv/getting-started/installation/) 和在 DeepSeek 官方平台申请的 API Key。
+接口与模型信息可查阅 [DeepSeek 官方文档](https://api-docs.deepseek.com/zh-cn/)。下面使用当日运行日志中的 `deepseek-flash`；第三方平台的 Key 不适用于代码中固定的官方接口地址。
 
 #### 1. 克隆本仓库并准备环境
 
